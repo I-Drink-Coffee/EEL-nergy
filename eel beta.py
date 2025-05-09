@@ -4,17 +4,12 @@ import threading
 import time
 from typing import List
 import os
-import serial  
+import serial  # For serial communication
 import datetime
-import io
-
 
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
-
 from flask import Flask, render_template, Response, jsonify,  send_file, redirect, make_response
-
 import board
 import busio
 from adafruit_amg88xx import AMG88XX
@@ -151,52 +146,22 @@ def data_collection_cycle():
                 'avg_temp': avg_temp,
                 'predicted_temp': predicted_temp
             })
-            logger.info(f">>>> Predicted temp: {predicted_temp:.2f}Â°C (Cycle {cycle_count})")
+            logger.info(f">>>> predicted temp (10 minutes): {predicted_temp:.2f}Â°C (Cycle {cycle_count})")
             with open(CSV_FILE, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    time.strftime('%Y-%m-%d %H:%M:%S'),
-                    cycle_count,
-                    f"{avg_temp:.2f}",
-                    f"{predicted_temp:.2f}",
-                    ""
-                ])
+                writer.writerow([time.strftime('%Y-%m-%d %H:%M:%S'),
+                                cycle_count,
+                                f"{avg_temp:.2f}",
+                                f"{predicted_temp:.2f}",
+                                ""])
             if predicted_temp > TEMP_THRESHOLD:
                 logger.warning(f"Predicted temperature exceeds threshold: {predicted_temp:.2f}Â°C")
-                if not ser.is_open:
-                    try:
-                        ser.open()
-                        logger.info("Reopened serial port for NodeMCU.")
-                    except Exception as e:
-                        logger.error(f"Failed to reopen serial: {e}")
                 notify_nodemcu(True)
             else:
-                logger.info("Predicted temperature below threshold. Sending RESET_DEVICE signal.")
-                try:
-                    notify_nodemcu(False)
-                except Exception as e:
-                    logger.error(f"Failed to notify NodeMCU before power saving: {e}")
-
-                logger.info("Entering power saving mode: closing USB and sleeping for 10 minutes.")
-                if ser.is_open:
-                    try:
-                        ser.close()
-                        logger.info("Closed serial port for power saving.")
-                    except Exception as e:
-                        logger.error(f"Error closing serial port: {e}")
-               
-                time.sleep(600)
-
-                try:
-                    ser.open()
-                    logger.info("Woke from power saving. Reopened serial port.")
-                except Exception as e:
-                    logger.error(f"Failed to reopen serial after power saving: {e}")
-
+                notify_nodemcu(False)
             cycle_duration = time.time() - cycle_start
             if cycle_duration < 600:
                 time.sleep(600 - cycle_duration)
-
         elapsed = time.time() - hour_start
         if elapsed < 3600:
             time.sleep(3600 - elapsed)
@@ -284,31 +249,30 @@ if __name__ == '__main__':
     if not os.path.exists('templates'):
         os.makedirs('templates')
     with open('templates/index.html', 'w') as f:
-            f.write('''<!DOCTYPE html>
+      f.write('''<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
     <title>Temperature Monitoring Dashboard</title>
+
     <style>
         :root {
-            --primary-color: #1a4971; /* Deep ocean blue */
-            --secondary-color: #2a9d8f; /* Vibrant teal */
-            --background-color: #e9f6fb; /* Soft sea foam */
-            --border-color: #b3d9e6; /* Light blue */
-            --table-header-bg: #c4e4f0; /* Pale aqua */
-            --accent-color: #e76f51; /* Coral reef */
+            --primary-color: #1a4971;   /* Deep ocean blue  */
+            --secondary-color: #2a9d8f; /* Vibrant teal      */
+            --background-color: #e9f6fb;/* Soft sea‑foam     */
+            --border-color: #b3d9e6;    /* Light blue        */
+            --table-header-bg: #c4e4f0; /* Pale aqua         */
+            --accent-color: #e76f51;    /* Coral reef        */
             --shadow-color: rgba(0, 0, 0, 0.15);
             --card-bg: rgba(255, 255, 255, 0.95);
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        /* ---------- Base resets ---------- */
+        *, *::before, *::after { box-sizing: border-box; }
         body {
+            margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             background: linear-gradient(145deg, var(--background-color), #d4e9f2);
             color: var(--secondary-color);
@@ -318,62 +282,56 @@ if __name__ == '__main__':
             flex-direction: column;
             padding: 1rem;
             overflow-x: hidden;
+            scroll-behavior: smooth;
         }
+        img { max-width: 100%; height: auto; }
 
+        /* ---------- Header ---------- */
         header {
-            position: sticky;
-            top: 0;
+            position: sticky; top: 0; z-index: 100;
             background: var(--card-bg);
             backdrop-filter: blur(10px);
             padding: 1rem 2rem;
             border-radius: 0 0 16px 16px;
             box-shadow: 0 4px 12px var(--shadow-color);
-            z-index: 100;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-
         h1 {
+            margin: 0;
             color: var(--primary-color);
             font-size: clamp(1.8rem, 5vw, 2.2rem);
             font-weight: 700;
             letter-spacing: -0.02em;
         }
-
         .refresh-btn {
             background: var(--secondary-color);
-            color: white;
+            color: #fff;
             border: none;
             padding: 0.5rem 1rem;
             border-radius: 8px;
+            font-size: 1rem;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            transition: background 0.3s ease, transform 0.2s ease;
-            font-size: 1rem;
+            transition: background 0.3s, transform 0.2s;
         }
+        .refresh-btn:hover   { background: #21867a; transform: translateY(-2px); }
+        .refresh-btn::before { content: '↻'; }
 
-        .refresh-btn:hover {
-            background: #21867a;
-            transform: translateY(-2px);
-        }
-
-        .refresh-btn::before {
-            content: '↻';
-            font-size: 1rem;
-        }
-
+        /* ---------- Main grid ---------- */
         main {
             max-width: 1600px;
             margin: 2rem auto;
             display: grid;
-            grid-template-columns: 1fr minmax(320px, 400px) 1fr;
             gap: 2rem;
+            grid-template-columns: 1fr minmax(320px, 400px) 1fr;
             padding: 0 1rem;
         }
 
+        /* ---------- Heatmap ---------- */
         .heatmap {
             grid-column: 2 / 3;
             background: var(--card-bg);
@@ -382,34 +340,24 @@ if __name__ == '__main__':
             box-shadow: 0 6px 16px var(--shadow-color);
             position: relative;
             overflow: hidden;
+            animation: fadeIn 0.6s ease-out forwards;
         }
-
         .heatmap::before {
             content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
+            position: absolute; inset: 0 0 auto;
             height: 4px;
             background: linear-gradient(90deg, var(--secondary-color), var(--accent-color));
         }
-
         .heatmap img {
-            width: 100%;
-            max-width: 360px;
-            height: auto;
             aspect-ratio: 1/1;
             object-fit: cover;
             border-radius: 12px;
             border: 3px solid var(--primary-color);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
+        .heatmap img:hover { transform: scale(1.03); box-shadow: 0 8px 20px var(--shadow-color); }
 
-        .heatmap img:hover {
-            transform: scale(1.03);
-            box-shadow: 0 8px 20px var(--shadow-color);
-        }
-
+        /* ---------- Data section ---------- */
         .data-section {
             grid-column: 1 / 4;
             background: var(--card-bg);
@@ -419,42 +367,28 @@ if __name__ == '__main__':
             display: flex;
             flex-direction: column;
             align-items: center;
+            animation: fadeIn 0.6s ease-out forwards;
         }
-
         .metrics {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
             width: 100%;
             max-width: 1000px;
             margin-bottom: 2rem;
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         }
-
         .metric-card {
             background: #f0f8fc;
             padding: 1rem;
             border-radius: 10px;
             text-align: center;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
+        .metric-card:hover   { transform: translateY(-4px); box-shadow: 0 4px 12px var(--shadow-color); }
+        .metric-card strong  { color: var(--primary-color); font-weight: 600; margin-bottom: .5rem; display: block; }
+        .metric-card span    { font-size: 1.2rem; color: var(--secondary-color); }
 
-        .metric-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 12px var(--shadow-color);
-        }
-
-        .metric-card strong {
-            color: var(--primary-color);
-            font-weight: 600;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-
-        .metric-card span {
-            font-size: 1.2rem;
-            color: var(--secondary-color);
-        }
-
+        /* ---------- Headings ---------- */
         h2 {
             color: var(--primary-color);
             font-size: clamp(1.4rem, 3.5vw, 1.6rem);
@@ -463,259 +397,194 @@ if __name__ == '__main__':
             position: relative;
             display: inline-block;
         }
-
         h2::after {
             content: '';
-            position: absolute;
-            bottom: -4px;
-            left: 0;
-            width: 100%;
-            height: 2px;
+            position: absolute; bottom: -4px; left: 0;
+            width: 100%; height: 2px;
             background: var(--accent-color);
         }
 
+        /* ---------- Table ---------- */
         table {
             width: min(100%, 1000px);
             border-collapse: separate;
             border-spacing: 0;
-            background: white;
+            background: #fff;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 12px var(--shadow-color);
             margin: 1rem 0;
+            display: block;         /* mobile horizontal scroll */
+            overflow-x: auto;
         }
-
+        thead { width: 100%; }
         th, td {
             padding: 1rem;
             border: 1px solid var(--border-color);
             text-align: center;
-            font-size: clamp(0.9rem, 2vw, 1rem);
+            font-size: clamp(.9rem, 2vw, 1rem);
         }
-
         th {
             background: var(--table-header-bg);
             color: var(--primary-color);
             font-weight: 600;
         }
+        tr:nth-child(even) { background: #f0f8fc; }
+        tr:hover           { background: #e0f0fa; }
 
-        tr {
-            transition: background 0.2s ease;
-        }
-
-        tr:nth-child(even) {
-            background: #f0f8fc;
-        }
-
-        tr:hover {
-            background: #e0f0fa;
-        }
-
+        /* ---------- Plot section ---------- */
         .plot-section {
             grid-column: 1 / 4;
-            background: varágin-bottom: 2rem;
+            background: var(--card-bg);
+            margin-bottom: 2rem;
             border-radius: 16px;
             padding: 1.5rem;
             box-shadow: 0 6px 16px var(--shadow-color);
             display: flex;
             justify-content: center;
+            animation: fadeIn 0.6s ease-out forwards;
         }
-
         .plot-section img {
-            width: 100%;
             max-width: 800px;
-            height: auto;
             border-radius: 12px;
             border: 2px solid var(--border-color);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            transition: transform 0.3s, box-shadow 0.3s;
         }
+        .plot-section img:hover { transform: scale(1.02); box-shadow: 0 8px 20px var(--shadow-color); }
 
-        .plot-section img:hover {
-            transform: scale(1.02);
-            box-shadow: 0 8px 20px var(--shadow-color);
-        }
-
+        /* ---------- Footer ---------- */
         footer {
             text-align: center;
             padding: 1rem;
             color: var(--primary-color);
-            font-size: 0.9rem;
+            font-size: .9rem;
             margin-top: auto;
         }
 
+        /* ---------- Media queries ---------- */
         @media (max-width: 1200px) {
-            main {
-                grid-template-columns: 1fr;
-            }
-
-            .heatmap, .data-section, .plot-section {
-                grid-column: 1 / 2;
-            }
-
-            .metrics {
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            }
+            main              { grid-template-columns: 1fr; }
+            .heatmap,
+            .data-section,
+            .plot-section     { grid-column: 1 / 2; }
+            .metrics          { grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); }
         }
-
         @media (max-width: 768px) {
-            body {
-                padding: 0.5rem;
-            }
-
-            header {
-                padding: 0.75rem 1rem;
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-
-            main {
-                margin: 1rem auto;
-                gap: 1rem;
-            }
-
-            .heatmap img {
-                max-width: 320px;
-            }
-
-            .data-section {
-                padding: 1rem;
-            }
-
-            table {
-                font-size: 0.9rem;
-            }
-
-            th, td {
-                padding: 0.75rem;
-            }
-
-            .plot-section img {
-                max-width: 100%;
-            }
+            body              { padding: .5rem; }
+            header            { padding: .75rem 1rem; flex-direction: column; gap: .5rem; }
+            main              { margin: 1rem auto; gap: 1rem; }
+            .data-section     { padding: 1rem; }
+            .metric-card span { font-size: 1.1rem; }
         }
-
         @media (max-width: 480px) {
-            h1 {
-                font-size: 1.6rem;
-            }
-
-            h2 {
-                font-size: 1.2rem;
-            }
-
-            .metric-card {
-                padding: 0.75rem;
-            }
-
-            .metric-card span {
-                font-size: 1rem;
-            }
-
-            .heatmap img {
-                max-width: 280px;
-            }
-
-            table {
-                font-size: 0.85rem;
-            }
-
-            th, td {
-                padding: 0.5rem;
-            }
+            h1                { font-size: 1.6rem; }
+            h2                { font-size: 1.2rem; }
+            .metric-card      { padding: .75rem; }
+            .metric-card span { font-size: 1rem; }
+            .refresh-btn      { width: 100%; justify-content: center; }
+            th, td            { padding: .5rem; }
         }
 
+        /* ---------- Animations ---------- */
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .heatmap, .data-section, .plot-section {
-            animation: fadeIn 0.6s ease-out forwards;
+            to   { opacity: 1; transform: translateY(0);   }
         }
     </style>
 </head>
+
 <body>
+    <!-- ---------- Header ---------- -->
     <header>
-        <h1>Real-Time Temperature Monitoring</h1>
-        <button class="refresh-btn" onclick="fetchData(); updatePlot();">
-            Refresh
-        </button>
+        <h1>Real‑Time Temperature Monitoring</h1>
+        <button class="refresh-btn" onclick="fetchData(); updatePlot();">Refresh</button>
     </header>
+
+    <!-- ---------- Main ---------- -->
     <main>
+        <!-- Heatmap -->
         <section class="heatmap" aria-label="Live heatmap display">
-            <img id="video" src="/video_feed" alt="Live Heatmap">
+            <img id="video" src="/video_feed" alt="Live Heatmap" />
         </section>
+
+        <!-- Data & Plot -->
         <section class="data-section" aria-label="Temperature data">
+            <!-- KPI cards -->
             <div class="metrics">
                 <div class="metric-card">
                     <strong>Cycle</strong>
-                    <span id="cycle">Loading...</span>
+                    <span id="cycle">Loading…</span>
                 </div>
                 <div class="metric-card">
                     <strong>Current Avg Temp</strong>
-                    <span id="current_avg">Loading...</span> °C
+                    <span id="current_avg">Loading…</span> °C
                 </div>
                 <div class="metric-card">
-                    <strong>Predicted Temp (10 mins)</strong>
-                    <span id="predicted">Loading...</span> °C
+                    <strong>Predicted Temp (10 mins)</strong>
+                    <span id="predicted">Loading…</span> °C
                 </div>
             </div>
+
+            <!-- History table -->
             <h2>Cycle History</h2>
             <table id="history-table" aria-label="Temperature history table">
                 <thead>
                     <tr>
                         <th scope="col">Cycle</th>
-                        <th scope="col">Avg Temp (°C)</th>
-                        <th scope="col">Predicted Temp (°C)</th>
+                        <th scope="col">Avg Temp (°C)</th>
+                        <th scope="col">Predicted Temp (°C)</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
+
+            <!-- Plot -->
             <h2>Average Temperature Plot</h2>
             <div class="plot-section">
-                <img src="/plot.png" id="temp-plot" alt="Temperature Plot">
+                <img id="temp-plot" src="/plot.png" alt="Temperature Plot" />
             </div>
         </section>
     </main>
-    <footer>
-        <p>© 2025 Temperature Monitoring System.</p>
-    </footer>
+
+    <!-- ---------- Footer ---------- -->
+    <footer>© 2025 Temperature Monitoring System.</footer>
+
+    <!-- ---------- JS ---------- -->
     <script>
         function fetchData() {
             fetch('/data')
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('cycle').textContent = data.cycle;
-                    document.getElementById('current_avg').textContent = data.current_avg.toFixed(2);
-                    document.getElementById('predicted').textContent = data.latest_predicted.toFixed(2);
-                    const table = document.querySelector('#history-table tbody');
-                    table.innerHTML = '';
+                    document.getElementById('cycle').textContent        = data.cycle;
+                    document.getElementById('current_avg').textContent  = data.current_avg.toFixed(2);
+                    document.getElementById('predicted').textContent    = data.latest_predicted.toFixed(2);
+
+                    const tbody = document.querySelector('#history-table tbody');
+                    tbody.innerHTML = '';
                     data.history.forEach(entry => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${entry.cycle}</td>
-                            <td>${entry.avg_temp.toFixed(2)}</td>
-                            <td>${entry.predicted_temp.toFixed(2)}</td>
-                        `;
-                        table.appendChild(row);
+                        tbody.insertAdjacentHTML('beforeend', `
+                            <tr>
+                                <td>${entry.cycle}</td>
+                                <td>${entry.avg_temp.toFixed(2)}</td>
+                                <td>${entry.predicted_temp.toFixed(2)}</td>
+                            </tr>`);
                     });
                 })
-                .catch(error => console.error('Error fetching data:', error));
+                .catch(console.error);
         }
 
         function updatePlot() {
             document.getElementById('temp-plot').src = '/plot.png?rand=' + Math.random();
         }
 
-        setInterval(() => {
-            fetchData();
-            updatePlot();
-        }, 5000);
-
-        fetchData();
-        updatePlot();
+        /* Auto‑refresh every 5 s */
+        setInterval(() => { fetchData(); updatePlot(); }, 5000);
+        /* Initial load */
+        fetchData(); updatePlot();
     </script>
 </body>
-</html>''')
+</html>
+''')
     logger.info("Starting temperature monitoring application...")
     start_background_thread()
     app.run(host='0.0.0.0', port=5000, debug=False)

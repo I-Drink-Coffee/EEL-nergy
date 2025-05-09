@@ -20,7 +20,6 @@ import busio
 from adafruit_amg88xx import AMG88XX
 from scipy.interpolate import griddata
 from sklearn.linear_model import LinearRegression
-
 # Flask app setup
 app = Flask(__name__)
 
@@ -151,52 +150,22 @@ def data_collection_cycle():
                 'avg_temp': avg_temp,
                 'predicted_temp': predicted_temp
             })
-            logger.info(f">>>> Predicted temp: {predicted_temp:.2f}Â°C (Cycle {cycle_count})")
+            logger.info(f">>>> predicted temp (10 minutes): {predicted_temp:.2f}Â°C (Cycle {cycle_count})")
             with open(CSV_FILE, 'a', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow([
-                    time.strftime('%Y-%m-%d %H:%M:%S'),
-                    cycle_count,
-                    f"{avg_temp:.2f}",
-                    f"{predicted_temp:.2f}",
-                    ""
-                ])
+                writer.writerow([time.strftime('%Y-%m-%d %H:%M:%S'),
+                                cycle_count,
+                                f"{avg_temp:.2f}",
+                                f"{predicted_temp:.2f}",
+                                ""])
             if predicted_temp > TEMP_THRESHOLD:
                 logger.warning(f"Predicted temperature exceeds threshold: {predicted_temp:.2f}Â°C")
-                if not ser.is_open:
-                    try:
-                        ser.open()
-                        logger.info("Reopened serial port for NodeMCU.")
-                    except Exception as e:
-                        logger.error(f"Failed to reopen serial: {e}")
                 notify_nodemcu(True)
             else:
-                logger.info("Predicted temperature below threshold. Sending RESET_DEVICE signal.")
-                try:
-                    notify_nodemcu(False)
-                except Exception as e:
-                    logger.error(f"Failed to notify NodeMCU before power saving: {e}")
-
-                logger.info("Entering power saving mode: closing USB and sleeping for 10 minutes.")
-                if ser.is_open:
-                    try:
-                        ser.close()
-                        logger.info("Closed serial port for power saving.")
-                    except Exception as e:
-                        logger.error(f"Error closing serial port: {e}")
-               
-                time.sleep(600)
-
-                try:
-                    ser.open()
-                    logger.info("Woke from power saving. Reopened serial port.")
-                except Exception as e:
-                    logger.error(f"Failed to reopen serial after power saving: {e}")
-
+                notify_nodemcu(False)
             cycle_duration = time.time() - cycle_start
             if cycle_duration < 600:
                 time.sleep(600 - cycle_duration)
-
         elapsed = time.time() - hour_start
         if elapsed < 3600:
             time.sleep(3600 - elapsed)
@@ -284,7 +253,7 @@ if __name__ == '__main__':
     if not os.path.exists('templates'):
         os.makedirs('templates')
     with open('templates/index.html', 'w') as f:
-            f.write('''<!DOCTYPE html>
+      f.write('''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">

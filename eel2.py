@@ -201,6 +201,7 @@ def video_feed():
     return Response(generate_temperature_feed(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
+
 def cleanup_files():
     """Delete log and CSV if older than 30 days"""
     while True:
