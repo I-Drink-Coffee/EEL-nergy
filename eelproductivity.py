@@ -145,10 +145,14 @@ def data_collection_cycle():
             sensor_data = temp_data
             predicted_temp = predict_temperature(temp_data)
             avg_temp = np.mean(temp_data) if temp_data else 0
+            cycle_timestamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(cycle_start))
+            time_mark = cycle_count * 10  
             cycle_data.append({
                 'cycle': cycle_count,
                 'avg_temp': avg_temp,
-                'predicted_temp': predicted_temp
+                'predicted_temp': predicted_temp,
+                'timestamp': cycle_timestamp,
+                'time_mark': time_mark  # e.g., 10, 20, 30 minutes
             })
             logger.info(f">>>> predicted temp (10 minutes): {predicted_temp:.2f}Â°C (Cycle {cycle_count})")
             with open(CSV_FILE, 'a', newline='') as f:
@@ -632,6 +636,7 @@ if __name__ == '__main__':
             <table id="history-table" aria-label="Temperature history table">
                 <thead>
                     <tr>
+                        <th scope="col">Time (Minutes)</th>
                         <th scope="col">Cycle</th>
                         <th scope="col">Avg Temp (°C)</th>
                         <th scope="col">Predicted Temp (°C)</th>
@@ -646,7 +651,7 @@ if __name__ == '__main__':
         </section>
     </main>
     <footer>
-        <p>© 2025 Temperature Monitoring System.</p>
+        <p>© 2025 Temperature Monitoring System.<     /p>
     </footer>
     <script>
         function fetchData() {
@@ -661,6 +666,7 @@ if __name__ == '__main__':
                     data.history.forEach(entry => {
                         const row = document.createElement('tr');
                         row.innerHTML = `
+                            <td>${entry.time_mark}</td>
                             <td>${entry.cycle}</td>
                             <td>${entry.avg_temp.toFixed(2)}</td>
                             <td>${entry.predicted_temp.toFixed(2)}</td>
